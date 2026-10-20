@@ -133,3 +133,5 @@ app.get('/api/stats/agence/:id', async (req, res) => {
   res.json({ agence_id: agenceId, total_membres: membres.rows[0].count });
 });
 // ===== V5 GESTION AGENTS COSEC - FIN =====
+=======
+app.listen(PORT,()=>console.log('COSEC V4 PRO sur http://localhost:'+PORT+' | Total agences: '+agences.length));
