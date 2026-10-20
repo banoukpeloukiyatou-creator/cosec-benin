@@ -1,137 +1,95 @@
-const pool = require('./config/database');
 const express = require('express');
-const fs = require('fs');
+const cors = require('cors');
+const path = require('path');
+const { Pool } = require('pg');
+require('dotenv').config();
+
 const app = express();
-const PORT = 3000;
-app.use(express.json());
+const PORT = process.env.PORT || 10000;
 
-const FICHIER = './agences.json';
-let agences = [];
-if (fs.existsSync(FICHIER)) {
-  agences = JSON.parse(fs.readFileSync(FICHIER));
-} else {
-  agences = [
-    {id:"SEC001", nom:"Agence Godomey", ville:"Godomey", statut:"Ouvert", solde:2500000},
-    {id:"SEC002", nom:"Agence Calavi", ville:"Abomey-Calavi", statut:"Ouvert", solde:1800000},
-    {id:"SEC003", nom:"Agence Akassato", ville:"Akassato", statut:"Fermé", solde:0},
-    {id:"SEC004", nom:"Agence ouidah", ville:"OUIDAH", statut:"Ouvert", solde:3200000}
-  ];
-  fs.writeFileSync(FICHIER, JSON.stringify(agences, null, 2));
-}
-function sauver(){ fs.writeFileSync(FICHIER, JSON.stringify(agences, null, 2)); }
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-app.get('/', (req,res)=>{
-  res.send(`
-<html><head><title>COSEC V4 PRO</title>
-<style>
- body{font-family:Arial;background:#f0f2f5;padding:15px}
- .card{background:white;padding:20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.1);max-width:1000px;margin:auto}
- h1{color:#1a73e8;text-align:center;margin-bottom:5px}
- .stats{display:flex;gap:15px;justify-content:center;margin:15px 0}
- .stat{background:#1a73e8;color:white;padding:12px 20px;border-radius:8px;text-align:center;min-width:120px}
- .stat b{font-size:20px;display:block}
- table{width:100%;border-collapse:collapse;margin-top:15px}
- th{background:#1a73e8;color:white;padding:10px} td{padding:8px;border-bottom:1px solid #ddd;text-align:center}
- .ouvert{color:green;font-weight:bold} .ferme{color:red;font-weight:bold}
- .form{background:#e8f0fe;padding:15px;border-radius:10px;margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
- input,select{padding:8px;border-radius:6px;border:1px solid #ccc}
- button{background:#1a73e8;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:bold}
- button:hover{background:#0d62c9}
-</style></head>
-<body><div class="card">
-<h1>🏦 COSEC V4 - Gestion PRO + Caisse</h1>
-<div class="stats"><div class="stat"><b id="nb">0</b>Agences</div><div class="stat"><b id="total">0</b>FCFA Total</div><div class="stat"><b id="ouvert">0</b>Ouvertes</div></div>
-<table id="table"></table>
-<div class="form">
-<input id="id" placeholder="ID SEC005" style="width:90px">
-<input id="nom" placeholder="Nom" style="width:130px">
-<input id="ville" placeholder="Ville" style="width:90px">
-<input id="solde" type="number" placeholder="Solde FCFA" style="width:110px">
-<select id="statut"><option>Ouvert</option><option>Fermé</option></select>
-<button onclick="ajouter()">➕ Ajouter</button>
-</div>
-<p style="text-align:center;margin-top:12px"><a href="/agences">API JSON</a> | Sauvegarde auto ✅</p>
-</div>
-<script>
-let agences=[];
-async function load(){ let r=await fetch('/agences'); agences=await r.json(); render(); }
-function render(){
- let t=document.getElementById('table');
- let total=agences.reduce((s,a)=>s+(parseInt(a.solde)||0),0);
- let nbOuvert=agences.filter(a=>a.statut=='Ouvert').length;
- document.getElementById('nb').innerText=agences.length;
- document.getElementById('total').innerText=total.toLocaleString('fr-FR');
- document.getElementById('ouvert').innerText=nbOuvert;
- t.innerHTML='<tr><th>ID</th><th>Nom</th><th>Ville</th><th>Solde</th><th>Statut</th><th>Action</th></tr>' + 
- agences.map(a=>\`<tr><td>\${a.id}</td><td>\${a.nom}</td><td>\${a.ville}</td><td><b>\${(a.solde||0).toLocaleString('fr-FR')} FCFA</b></td><td class="\${a.statut=='Ouvert'?'ouvert':'ferme'}">\${a.statut}</td><td><button onclick="suppr('\${a.id}')">Supprimer</button></td></tr>\`).join('');
-}
-async function ajouter(){
- let id=document.getElementById('id').value, nom=document.getElementById('nom').value, ville=document.getElementById('ville').value, statut=document.getElementById('statut').value, solde=parseInt(document.getElementById('solde').value)||0;
- if(!id||!nom||!ville) return alert('Remplis tout Maître !');
- await fetch('/agences',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,nom,ville,statut,solde})});
- document.getElementById('id').value='';document.getElementById('nom').value='';document.getElementById('ville').value='';document.getElementById('solde').value='';
- load();
-}
-async function suppr(id){ if(!confirm('Supprimer '+id+' ?')) return; await fetch('/agences/'+id,{method:'DELETE'}); load(); }
-load();
-</script></body></html>`);
+// Serve static files
+app.use(express.static(path.join(__dirname)));
+
+// Database connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
-app.get('/agences',(req,res)=>res.json(agences));
-app.post('/agences',(req,res)=>{ agences.push(req.body); sauver(); console.log('Ajouté:',req.body); res.json({ok:true}); });
-app.delete('/agences/:id',(req,res)=>{ agences=agences.filter(a=>a.id!==req.params.id); sauver(); res.json({ok:true}); });
-// TEMPORAIRE V5 - A ENLEVER APRES
-require('./scripts/init-v5');
-app.listen(PORT,()=>console.log('COSEC V4 PRO sur http://localhost:'+PORT+' | Total agences: '+agences.length));
-// ===== V5 GESTION AGENTS COSEC - DEBUT =====
-const bcrypt = require('bcryptjs');
 
-// Route pour créer un agent (toi Super-Admin)
-app.post('/api/agents/creer', async (req, res) => {
+// Test DB connection
+pool.connect((err, client, release) => {
+  if (err) {
+    console.error('❌ Erreur connexion DB:', err.stack);
+  } else {
+    console.log('✅ Connecté à PostgreSQL Render');
+    release();
+  }
+});
+
+// ===== ROUTES API =====
+
+// Route test
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'COSEC Benin API V5 OK', status: '7.5M ready' });
+});
+
+// Route AGENTS - V5
+app.get('/api/agents', async (req, res) => {
   try {
-    const { nom, telephone, agence_nom, agence_id, mot_de_passe } = req.body;
-    const hash = await bcrypt.hash(mot_de_passe, 10);
-    
+    const result = await pool.query('SELECT * FROM agents ORDER BY created_at DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Erreur agents', details: err.message });
+  }
+});
+
+app.post('/api/agents', async (req, res) => {
+  try {
+    const { nom, prenom, matricule, poste, departement } = req.body;
     const result = await pool.query(
-      `INSERT INTO agents (nom, telephone, agence_nom, agence_id, mot_de_passe_hash, role)
-       VALUES ($1,$2,$3,$4,$5,'agent') RETURNING id, nom, telephone, agence_nom`,
-      [nom, telephone, agence_nom, agence_id, hash]
+      'INSERT INTO agents (nom, prenom, matricule, poste, departement) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [nom, prenom, matricule, poste, departement]
     );
-    res.json({ success: true, agent: result.rows[0] });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Route login agent
-app.post('/api/agents/login', async (req, res) => {
+// Route pour gérer les 7.5M et autres données
+app.get('/api/stats', async (req, res) => {
   try {
-    const { telephone, mot_de_passe } = req.body;
-    const result = await pool.query('SELECT * FROM agents WHERE telephone=$1', [telephone]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Agent non trouvé' });
-    
-    const agent = result.rows[0];
-    const ok = await bcrypt.compare(mot_de_passe, agent.mot_de_passe_hash);
-    if (!ok) return res.status(401).json({ error: 'Mot de passe faux' });
-    
-    res.json({ success: true, agent: { id: agent.id, nom: agent.nom, agence_id: agent.agence_id, agence_nom: agent.agence_nom, role: agent.role } });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.json({ 
+      budget_total: 7500000,
+      version: 'V5',
+      status: 'Actif'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Route voir tous les agents (Super-Admin)
-app.get('/api/agents/liste', async (req, res) => {
-  const result = await pool.query('SELECT id, nom, telephone, agence_nom, agence_id, role, est_actif FROM agents ORDER BY agence_id');
-  res.json(result.rows);
+// Routes Pages
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Route stats par agence (filtrage V5)
-app.get('/api/stats/agence/:id', async (req, res) => {
-  const agenceId = req.params.id;
-  // Exemple : Si agence 1 = Godomey, on filtre
-  const membres = await pool.query('SELECT COUNT(*) FROM membres WHERE agence_id=$1', [agenceId]);
-  res.json({ agence_id: agenceId, total_membres: membres.rows[0].count });
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'admin.html'));
 });
-// ===== V5 GESTION AGENTS COSEC - FIN =====
-=======
-app.listen(PORT,()=>console.log('COSEC V4 PRO sur http://localhost:'+PORT+' | Total agences: '+agences.length));
+
+// Fallback
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 COSEC Benin V5 lancé sur port ${PORT}`);
+  console.log(`✅ Prêt pour gestion 7.5M`);
+});
