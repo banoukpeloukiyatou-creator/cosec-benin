@@ -1,0 +1,30 @@
+[
+  {
+    "id": "SEC001",
+    "nom": "Agence Godomey",
+    "ville": "Godomey",
+    "statut": "Ouvert",
+    "solde": 2500000
+  },
+  {
+    "id": "SEC002",
+    "nom": "Agence Calavi",
+    "ville": "Abomey-Calavi",
+    "statut": "Ouvert",
+    "solde": 1800000
+  },
+  {
+    "id": "SEC003",
+    "nom": "Agence Akassato",
+    "ville": "Akassato",
+    "statut": "Fermé",
+    "solde": 0
+  },
+  {
+    "id": "SEC004",
+    "nom": "Agence ouidah",
+    "ville": "OUIDAH",
+    "statut": "Ouvert",
+    "solde": 3200000
+  }
+]
