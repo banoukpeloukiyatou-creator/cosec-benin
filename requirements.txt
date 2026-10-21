@@ -4,3 +4,5 @@ python-multipart
 SQLAlchemy
 python-docx
 jinja2
+flask
+flask-cors
