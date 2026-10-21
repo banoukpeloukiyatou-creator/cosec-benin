@@ -1,2 +1,6 @@
-﻿Flask
-gunicorn
+fastapi 
+uvicorn
+python-multipart
+SQLAlchemy
+python-docx
+jinja2
